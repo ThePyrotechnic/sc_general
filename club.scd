@@ -187,27 +187,22 @@ Ppar([
 	])*/
 
 ]).play(TempoClock(128 / 60), quant: 1);
-)
-(
 
-
-Pdef(
-	\master_p,
-	Pbind(*[
-		instrument: \masterOut,
-		in: ~master,
-		amp: 0.5,
-		out: 0,
-		group: ~master_grp
-	])
-).play;
-)
-(
 ~retro_ref = Synth.new(\retro, [
 	amp: 0.2,
 	out: ~wave,
 	group: ~sources
 ]);
+)
+(
+~master_ref = Synth.new(\masterOut, [
+	instrument: \masterOut,
+	in: ~master,
+	amp: 1,
+	out: 0,
+	group: ~master_grp
+]);
+
 )
 
 FreqScope.new()
