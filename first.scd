@@ -1,3 +1,4 @@
+// {[Pan2.ar(SinOsc.ar(110, mul: 0.4), 0.5), Pan2.ar(DelayC.ar(SinOsc.ar(110, mul: 0.4)), -0.5)]}.play;
 (
 e = Bus.audio(s, 1); // Effects
 
@@ -9,10 +10,10 @@ SynthDef(\reverb, {|outBus = 0, inBus|
     Out.ar(outBus, input);
 }).add;
 
-SynthDef(\wave, {|out, effectBus, pan = 0, start = 0, amp = 1, direct = 0.5|
+SynthDef(\wave, {|out, effectBus, width = 0, start = 0, amp = 1, direct = 0.5|
 	// var wave = Decay2.ar(Impulse.ar([0.06, 0.04]), 4, 20, WhiteNoise.ar(0.2));
     var wave = EnvGen.kr(Env(levels: [0, 0, 1, 0], times: [start, 1, 16], curve: [0, -7, -6]), doneAction: Done.freeSelf) * WhiteNoise.ar(0.2);
-	Out.ar(out, Pan2.ar(wave, pan) * direct * amp);
+	Out.ar(out, [Pan2.ar(wave, width) * direct * amp, Pan2.ar(wave, (-1)*width) * direct * amp]);
 	// Out.ar(effectBus, wave * (1 - direct) * amp);
 }).add;
 
@@ -65,7 +66,7 @@ Pmono(
 	\amp,        Pwhite(0.01, 0.03),
 	\slideTime,  Pgauss(2.0, 1.0, inf).abs,
 	\dur,        Pwhite(3.0, 5.0, inf),
-	\pan,        0.15,
+	\pan,        0,
 	\group,      ~sources
 ).play;
 
@@ -75,9 +76,9 @@ Pbind(
 	\effectBus,  e,
 	\direct,     1,
 	\delta,      Pgauss(3.4, 6.847, inf).abs,
-	\amp,        Pwhite(0.5, 0.8, inf),
+	\amp,        Pwhite(0.2, 0.3, inf),
 	\pitchRatio, Pwhite(0.1, 4, inf),
-	\pan,        0,
+	\pan,        -0.18,
 	\group,      ~sources
 ).play;
 
@@ -87,9 +88,9 @@ Pbind(
 	\effectBus,  e,
 	\direct,     1,
 	\delta,      Pgauss(2.5, 4.5, inf).abs,
-	\amp,        Pwhite(0.2, 0.4, inf),
+	\amp,        Pwhite(0.1, 0.2, inf),
 	\pitchRatio, Pwhite(0.1, 4, inf),
-	\pan,        -0.05,
+	\pan,        -0.15,
 	\group,      ~sources
 ).play;
 
@@ -101,9 +102,10 @@ Pbind(
 	\delta,      Pgauss(1.5, 2.5, inf).abs,
 	\amp,        Pwhite(0.05, 0.1, inf),
 	\pitchRatio, Pwhite(0.1, 4, inf),
-	\pan,        0.05,
+	\pan,        -0.16,
 	\group,      ~sources
 ).play;
+
 
 // Waves
 Pbind(
@@ -111,52 +113,52 @@ Pbind(
 	\effectBus,  e,
 	\direct,     0.5,
 	\delta,      Pwhite(10.0, 30.0, inf),
-	\pan,        Pwhite(-0.85, -0.45, inf),
-	\amp,        Pwhite(0.15, 0.35, inf),
+	// \width,      0,
+	\width,      Pwhite(0.1, 0.8, inf),
+	// \pan,        Pwhite(-0.85, -0.45, inf),
+	\amp,        Pwhite(0.01, 0.05, inf),
 	\group,      ~sources
 ).play;
 
 // Crickets
+// Change the <number>.collect lines to any number to add more crickets
 Pspawner({ |sp|
 	var streams, stream;
-	streams = 2.collect {
-		stream = sp.par(Pbind(
+	streams = LinkedList();
+	inf.do({
+		streams.addAll(1.collect {
+			sp.par(Pbind(
+				\instrument, \cricket,
+				\effectBus,  e,
+				\direct,     0.96,
+				\delta,      Pseq([Pn(0.03, 8), 0.3], inf),
+				\pan,        rrand(0, 1),
+				// \amp,        exprand(0.08, 0.1),
+				\amp,        [0.002, 0.001, 0].choose,
+				\start,      2.0.rand,
+				\group,      ~sources
+			))
+		});
+		sp.wait(rrand(5.0, 10.0));
+
+		1.do({
+			stream = streams.popFirst;
+			sp.suspend(stream)
+		})
+	})
+ }).play
+)
+(
+Pbind(
 			\instrument, \cricket,
 			\effectBus,  e,
 			\direct,     0.96,
 			\delta,      Pseq([Pn(0.03, 8), 0.3], inf),
 			\pan,        0.5.rand + 0.5,
 			// \amp,        exprand(0.08, 0.1),
-			\amp,        0.002,
-			\start,      2.0.rand,
-			\group,      ~sources
-		));
-		stream;
-	};
-	streams = LinkedList.newFrom(streams);
-	inf.do({
-		streams.addAll(2.collect {
-			stream = sp.par(Pbind(
-				\instrument, \cricket,
-				\effectBus,  e,
-				\direct,     0.96,
-				\delta,      Pseq([Pn(0.03, 8), 0.3], inf),
-				\pan,        0.5.rand + 0.5,
-				// \amp,        exprand(0.08, 0.1),
-				\amp,        0.002,
-				\start,      2.0.rand,
-				\group,      ~sources
-			));
-			stream;
-		});
-		sp.wait(10);
-
-		2.do({
-			stream = streams.popFirst;
-			sp.suspend(stream)
-		})
-	})
- }).play
+			\amp,        0.02 ,
+			\start,      2.0.rand
+		).play
 )
 
 p = Pgauss(2.0, 1.0, inf).abs.asStream;

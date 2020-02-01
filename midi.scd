@@ -17,9 +17,9 @@ b.loadCollection(wt);
 )
 
 (
-p = Bus.audio(s, 1); // Pulse
-k = Bus.audio(s, 1); // Saw
-e = Bus.audio(s, 1); // Effects
+~pulse = Bus.audio(s, 1); // Pulse
+~saw = Bus.audio(s, 1); // Saw
+~effects = Bus.audio(s, 1); // Effects
 )
 
 (
@@ -32,10 +32,16 @@ SynthDef(\retro, {
 }).add;
 )
 
+Synth(\retro).play;
+
 (
 m = SimpleMIDIFile.read("C:/Users/micha/Downloads/Overworld 1.mid");
-m.p(\pulse).play;
+m.p(\retro).play;
 )
+
+{EnvGen.kr(Env.adsr, doneAction: Done.freeSelf)}.plot(3)
+
+{Pulse.ar(44, width: 0.5, mul: 0.1!2)}.play
 
 (
 Pbind(*[
@@ -47,7 +53,7 @@ Pbind(*[
 )
 (
 SynthDef(\compressor, {
-	var snd = Compander.ar(In.ar(k), In.ar(p), \thresh.kr(0.5), 1, 1 / (\ratio.kr(4)), 0.01, \decay.kr(0.2));
+	var snd = Compander.ar(In.ar(~saw), In.ar(~pulse), \thresh.kr(0.5), 1, 1 / (\ratio.kr(4)), 0.01, \decay.kr(0.2));
 	snd = Pan2.ar(snd, \pan.kr(0));
 	Out.ar(\out.kr(0), snd * \amp.kr(1));
 }).add;
@@ -68,22 +74,28 @@ SynthDef(\pulse, {
 	Out.ar(\out.kr(0), snd * \amp.kr(1));
 	Out.ar(\send.kr(0), Mix(snd) * \amp.kr(1))
 }).add;
+
+SynthDef(\pwm, {
+	var snd = EnvGen.kr(Env.adsr, doneAction: Done.freeSelf)
+	* Pulse.ar(\freq.kr(44), width: 0.5, mul: 2.6);
+	Out.ar(\out.kr(0), Pan2.ar(snd * \amp.kr(1)));
+}).add;
 )
 
 (
 ~sources = Group.new();
-~effects = Group.after(~sources);
+~effects_grp = Group.after(~sources);
 
 Pmono(*[
 	\compressor,
 	amp: 1,
-	in: k,
-	control: p,
+	in: ~saw,
+	control: ~pulse,
 	out: 0,
 	thresh: 0.1,
 	ratio: 4,
 	decay: 0.45,
-	group: ~effects
+	group: ~effects_grp
 ]).play;
 
 Ppar([
@@ -93,18 +105,16 @@ Ppar([
 		freq: 60,
 		dur: Pseq(#[1], inf),
 		out: 0,
-		send: p,
+		send: ~pulse,
 		pan: 0,
 		group: ~sources
 	]),
-	PmonoArtic(*[
-		\saw,
-		amp: 0.5,
-		freq: Pseq(5.collect({|n| 5 * (n + 1) + 25 }), inf),
-		out: k,
-		sustain: Pseq([2], inf),
-		dur: Pseq([1], inf),
-
+	Pbind(*[
+		instrument: \pwm,
+		amp: 1,
+		freq: Pseq([44, 44.02], inf),
+		out: ~saw,
+		dur: 0.5,
 		group: ~sources
 	]),
 ]).play(TempoClock(120 / 60));
