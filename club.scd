@@ -6,8 +6,6 @@
 )
 
 (
-~retro_buf = Buffer.alloc(s, 8192 * 2);
-
 SynthDef(\compressor, {|in, control|
 	var snd = Compander.ar(In.ar(in, 2), In.ar(control), \thresh.kr(0.5), 1, 1 / (\ratio.kr(4)), 0.01, \decay.kr(0.2));
 	snd = snd * \amp.kr(1);
@@ -31,6 +29,7 @@ SynthDef(\pulse, {
 	Out.ar(\send.kr(0), Mix(snd) * (1 - \direct.kr(0.5)) * \amp.kr(1))
 }).add;
 
+~retro_buf = Buffer.alloc(s, 8192 * 2);
 ~retro_sig = Signal.newClear(8192);
 ~retro_sig.waveFill({arg x, old, i;
 	if((x < (-pi/3)) || (x > (pi/3)),
@@ -40,12 +39,30 @@ SynthDef(\pulse, {
 ~retro_sig = ~retro_sig.asWavetable;
 ~retro_buf.loadCollection(~retro_sig);
 
+~pistol_buf = Buffer.read(s, Platform.userHomeDir +/+ "Documents/supercollider/sc_general/p250_master.wav");
+
+~step_buf = Buffer.read(s, Platform.userHomeDir +/+ "Documents/supercollider/sc_general/concrete_step.wav", 0, 48000 * 15); // 15 seconds
+
+SynthDef(\pistol, {
+	var snd = PlayBuf.ar(2, ~pistol_buf, 1, \trigger.kr(-1), doneAction: Done.none);
+	snd = snd * \amp.kr(1);
+
+	Out.ar(\out.kr(0), snd);
+}).add;
+
+SynthDef(\steps, {
+	var snd = PlayBuf.ar(1, ~step_buf, 1, \trigger.kr(-1), doneAction: Done.none);
+	snd = snd * \amp.kr(1);
+	snd = Pan2.ar(snd);
+	Out.ar(\out.kr(0), snd);
+}).add;
+
 SynthDef(\retro, {
 	arg detune = 0.02;
 	var env = EnvGen.ar(Env.asr(0.001, 1, 0.1), \gate.kr(0), doneAction: Done.none);
 	var snd = Osc.ar(~retro_buf,
 		\freq.kr(55) * LFNoise1.kr(0.2!8).bipolar(detune.neg, detune).midiratio);
-	snd = LPF.ar(snd, \lp_freq.kr(100));
+	snd = LPF.ar(snd, \lp_freq.kr(10000));
 	snd = Splay.ar(snd);
 	snd = snd * env * \amp.kr(1);
 
@@ -70,20 +87,48 @@ SynthDef(\smack, {
 
 SynthDef(\masterOut, {
 	var snd = In.ar(\in.kr(0), 2);
-	// snd = LPF.ar(snd, \lp_freq.kr(22000));
+	snd = LPF.ar(snd, \lp_freq.kr(22000));
 	Out.ar(\out.kr(0), snd * \amp.kr(1));
 }).add;
 
 )
 
 (
+~master_ref = Synth.new(\masterOut, [
+	instrument: \masterOut,
+	in: ~master,
+	amp: 1,
+	out: 0,
+	group: ~master_grp
+]);
+)
+
+(
 OSCdef.new(
-	\toggle,
+	\toggle1,
 	{
 		arg msg, time, addr, port;
 		~retro_ref.set(\gate, msg[1]);
 	},
 	'/main/toggle1'
+);
+
+OSCdef.new(
+	\toggle2,
+	{
+		arg msg, time, addr, port;
+		~steps_ref.set(\trigger, msg[1]);
+	},
+	'/main/toggle2'
+);
+
+OSCdef.new(
+	\push1,
+	{
+		arg msg, time, addr, port;
+		~pistol_ref.set(\trigger, msg[1]);
+	},
+	'/main/push1'
 );
 
 OSCdef.new(
@@ -102,6 +147,15 @@ OSCdef.new(
 		~retro_ref.set(\lp_freq, msg[1].linexp(0, 1, 20, 10000));
 	},
 	'/main/fader2'
+);
+
+OSCdef.new(
+	\fader3,
+	{
+		arg msg, time, addr, port;
+		~master_ref.set(\lp_freq, msg[1].linexp(0, 1, 20, 22000));
+	},
+	'/main/fader3'
 );
 
 ~sources = Group.new();
@@ -188,21 +242,24 @@ Ppar([
 
 ]).play(TempoClock(128 / 60), quant: 1);
 
+
 ~retro_ref = Synth.new(\retro, [
 	amp: 0.2,
 	out: ~wave,
 	group: ~sources
 ]);
-)
-(
-~master_ref = Synth.new(\masterOut, [
-	instrument: \masterOut,
-	in: ~master,
-	amp: 1,
-	out: 0,
-	group: ~master_grp
+
+/*~pistol_ref = Synth.new(\pistol, [
+	amp: 1.3,
+	out: ~master,
+	group: ~sources
 ]);
 
+~steps_ref = Synth.new(\steps, [
+	amp: 1.3,
+	out: 0,
+	group: ~sources
+]);*/
 )
 
 FreqScope.new()
