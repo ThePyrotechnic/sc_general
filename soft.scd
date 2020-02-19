@@ -25,6 +25,12 @@ SynthDef.new(\bell, {
 )
 
 (
+~wt.do({arg w, a;
+	w.plot;
+});
+)
+
+(
 ~waveRes = 8192;
 
 ~wt = Array.fill(4, {
